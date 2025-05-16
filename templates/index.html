@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Stream Monitor</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
+        }
+
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            transition: border 0.3s;
+        }
+
+        input[type="text"]:focus {
+            border-color: #3498db;
+            outline: none;
+        }
+
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        #monitoring-info, #clip-info {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 5px;
+            background-color: #f8f9fa;
+        }
+
+        .message {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .timestamp {
+            background-color: #e3f2fd;
+            color: #0275d8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>YouTube Stream Monitor</h1>
+
+        <div class="section">
+            <h2>Monitor Live Chat</h2>
+            <form id="monitor-form">
+                <input type="text" id="url" placeholder="Enter YouTube Live URL" required>
+                <button type="submit">Start Monitoring</button>
+            </form>
+            <div id="monitoring-info"></div>
+        </div>
+
+        <div class="section">
+            <h2>Extract Video Clip</h2>
+            <form id="clip-form">
+                <input type="text" id="clip-url" placeholder="Enter YouTube Video URL" required>
+                <input type="text" id="timestamp1" placeholder="Start Time (HH:MM:SS)" required>
+                <input type="text" id="timestamp2" placeholder="End Time (HH:MM:SS)" required>
+                <button type="submit">Extract Clip</button>
+            </form>
+            <div id="clip-info"></div>
+        </div>
+    </div>
+
+    <script>
+        let task_id = null;
+        let monitoring_timer = null;
+
+        $('#monitor-form').on('submit', function(e) {
+            e.preventDefault();
+            const url = $('#url').val();
+            $.post('/monitor', { url: url }, function(response) {
+                $('#monitoring-info').html(`
+                    <div class="message success">
+                        Monitoring started with task ID: ${response.task_id}
+                    </div>
+                `);
+                task_id = response.task_id;
+                clearInterval(monitoring_timer);
+                monitoring_timer = setInterval(function() {
+                    $.get(`/status/${task_id}`, function(data) {
+                        data.forEach(item => {
+                            if (item.timestamp) {
+                                $('#monitoring-info').append(`
+                                    <div class="message timestamp">
+                                        Clip command received at: ${item.timestamp}
+                                    </div>
+                                `);
+                            } else if (item.error) {
+                                $('#monitoring-info').append(`
+                                    <div class="message error">
+                                        Error: ${item.error}
+                                    </div>
+                                `);
+                                clearInterval(monitoring_timer);
+                            }
+                        });
+                    });
+                }, 1000);
+            }).fail(function(xhr) {
+                $('#monitoring-info').html(`
+                    <div class="message error">
+                        Error: ${xhr.responseJSON.error}
+                    </div>
+                `);
+            });
+        });
+
+        $('#clip-form').on('submit', function(e) {
+            e.preventDefault();
+            const url = $('#clip-url').val();
+            const timestamp1 = $('#timestamp1').val();
+            const timestamp2 = $('#timestamp2').val();
+            $.post('/clip', { url: url, timestamp1: timestamp1, timestamp2: timestamp2 }, function(data) {
+                $('#clip-info').html(`
+                    <div class="message success">
+                        Clip extracted successfully. Check your downloads.
+                    </div>
+                `);
+            }).fail(function(xhr) {
+                $('#clip-info').html(`
+                    <div class="message error">
+                        Error: ${xhr.responseJSON.error}
+                    </div>
+                `);
+            });
+        });
+    </script>
+</body>
+</html>
